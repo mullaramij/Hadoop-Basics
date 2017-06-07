@@ -1,0 +1,146 @@
+//Ubuntu Server 14.04 LTS
+//create a instance 
+//Install JVM and Hadoop
+// ***********  Loading server log data in hive
+wget https://s3-ap-southeast-2.amazonaws.com/datasetz/eventlog.log 
+hadoop fs -copyFromLocal /home/ubuntu/eventlog.log /user/ubuntu/serverlog.log
+hadoop fs -ls /user/ubuntu/
+//************  Hive installation
+wget http://www-eu.apache.org/dist/hive/hive-1.2.2/apache-hive-1.2.2-bin.tar.gz
+tar -zxf apache-hive-1.2.2-bin.tar.gz
+sudo mv apache-hive-1.2.2-bin /usr/local/hive
+nano ~/.bashrc 
+export HIVE_HOME=/usr/local/hive 
+export PATH=$PATH:$HIVE_HOME/bin
+
+exec bash
+
+cd $HIVE_HOME/conf 
+cp hive-env.sh.template hive-env.sh 
+
+nano $HIVE_HOME/conf/hive-env.sh 
+export HADOOP_HOME=/usr/local/hadoop 
+
+hadoop fs -mkdir /user/hive/warehouse
+hive
+hadoop fs -chmod   -R 777 /tmp
+hive
+Create database server; 
+Show databases;
+Use server; 
+create table serverdataaa (time STRING, ip STRING, country STRING, status STRING)
+                          ROW FORMAT DELIMITED FIELDS TERMINATED BY '|' LOCATION '/user/ubuntu/';
+select * from serverdataa limit 10;
+SELECT * FROM serverdataa where country = "IN" LIMIT 5; 
+SELECT DISTINCT * FROM serverdataa; 
+exit; 
+
+Pig
+wget http://mirror.fibergrid.in/apache/pig/latest/pig-0.16.0.tar.gz 
+tar -zxvf pig-0.16.0.tar.gz
+sudo mv pig-0.16.0 /usr/local/pig
+export PIG_HOME=/usr/local/pig/ 
+export PATH=$PATH:$PIG_HOME/bin
+//************  goto web GUI 
+browse /user/hive/warehouse/server.db
+//************  now goto hive
+hive
+create table doc(text string) row format delimited fields terminated by '\n' stored as textfile;
+load data inpath '/user/ubuntu/serverlog.log' overwrite into table doc; 
+SELECT word, COUNT(*) FROM doc LATERAL VIEW explode(split(text, ' ')) lTable as word GROUP BY word; 
+exit;
+
+//************  now goto pig
+export PIG_HOME=/usr/local/pig/ 
+export PATH=$PATH:$PIG_HOME/bin
+pig
+lines = LOAD '/user/hive/warehouse/doc/serverlog.log' AS (line:chararray); 
+words = FOREACH lines GENERATE FLATTEN(TOKENIZE(line)) as word; 
+grouped = GROUP words BY word; 
+wordcount = FOREACH grouped GENERATE group, COUNT(words); 
+DUMP wordcount 
+quit 
+
+//************  Mysql-Client
+sudo apt-get install mysql-server mysql-client -y
+//  password 1234
+service mysql status 
+mysqladmin -u root -p version 
+mysqladmin -u root -p status 
+mysql -u root -p 
+mysql> show databases; 
+mysql> CREATE DATABASE jinga_db;
+mysql> GRANT ALL PRIVILEGES ON jinga_db.* TO 'root'@'localhost'; 
+mysql> show databases; 
+mysql> USE jinga_db; 
+mysql> show tables; 
+mysql> CREATE TABLE user_data(first_name VARCHAR(50) NOT NULL, 
+  company_name VARCHAR(100), 
+  address VARCHAR(100), 
+ country VARCHAR(50), 
+ city VARCHAR(50), 
+ state VARCHAR(50)); 
+
+mysql> desc user_data; 
+exit;
+
+wget https://s3-ap-southeast-2.amazonaws.com/datasetz/userdata.txt 
+sudo cp userdata.txt /var/lib/mysql/jinga_db/ 
+mysql -u root -p
+USE jinga_db;
+LOAD DATA INFILE 'userdata.txt' INTO TABLE user_data FIELDS TERMINATED BY ',' ;
+sudo nano /etc/mysql/my.cnf
+secure_file_priv = "" 
+sudo service mysql restart
+mysql -u root -p
+USE jinga_db;
+LOAD DATA INFILE 'userdata.txt' INTO TABLE user_data FIELDS TERMINATED BY ',' ;
+SELECT COUNT(*) FROM user_data;
+select * from user_data limit 10;
+quit
+//************ Make sure you have ubuntu 14.04
+
+wget https://s3-ap-southeast-2.amazonaws.com/datasetz/Sample-SQL-File-10000-Rows.sql 
+mysql -u root -p jinga_db < Sample-SQL-File-10000-Rows.sql 
+mysql -u root -p 
+mysql> show databases; 
+mysql> use jinga_db; 
+mysql> show tables; 
+mysql> desc user_details; 
+mysql> select * from user_details limit 100; 
+mysql> exit;
+Back up mysql database: 
+mysqldump -u root -p --all-databases; > mysql_06-06-2017.sql 
+//************  restore exising database 
+mysql -u root -p < mysql_06-06-2017.sql 
+//  for back up restore. 
+
+//************  APACHE SQOOP 
+wget http://archive.apache.org/dist/sqoop/1.4.4/sqoop-1.4.4.bin__hadoop-1.0.0.tar.gz 
+tar -zxvf sqoop-1.4.4.bin__hadoop-1.0.0.tar.gz 
+sudo mv sqoop-1.4.4.bin__hadoop-1.0.0 /usr/local/sqoop/ 
+nano ~/.bashrc 
+export SQOOP_PREFIX="/usr/local/sqoop/" 
+export SQOOP_CONF_DIR="$SQOOP_PREFIX/conf" 
+export SQOOP_CLASSPATH="$SQOOP_CONF_DIR" 
+export PATH="$SQOOP_PREFIX/bin:$PATH" 
+exec bash 
+cd $SQOOP_PREFIX/conf 
+mv sqoop-env-template.sh sqoop-env.sh 
+nano sqoop-env.sh 
+export HADOOP_COMMON_HOME=/usr/local/hadoop 
+export HADOOP_MAPRED_HOME=/usr/local/hadoop 
+export ZOOKEPER_HOME=$ZOOKEEPER_HOME 
+export HBASE_HOME=$HBASE_HOME 
+export HIVE_HOME=$HIVE_HOME 
+wget http://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-5.1.39.tar.gz 
+tar -zxf mysql-connector-java-5.1.39.tar.gz 
+cp mysql-connector-java-5.1.39/mysql-connector-java-5.1.39-bin.jar /usr/local/sqoop/lib/ 
+cd $SQOOP_PREFIX/bin 
+sqoop-version 
+sqoop import --connect jdbc:mysql://localhost/jinga_db --username root -P --table user_details -m 1 --target-dir /tables/userdata/ 
+sqoop import --connect jdbc:mysql://localhost/jinga_db --username root -P --table user_data -m 1 --target-dir /tables/userdata 2/
+sqoop import --connect jdbc:mysql://localhost/jinga_db --username root -P --table user_data -m 1  --target-dir /tables/userdata3/ --as-sequencefile 
+sqoop import --connect jdbc:mysql://localhost/jinga_db --username root -P --table user_data -m 1 --target-dir /tables/userdata4/ --as-avrodatafile 
+
+//************goto web gui check /tables

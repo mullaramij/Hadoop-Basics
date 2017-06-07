@@ -1,0 +1,116 @@
+// Single node cluster
+// create a instance: Ubuntu Server 14.04 LTS
+// Client Server relationship
+cd .ssh/
+cat known_hosts
+cat authorized_keys
+ssh-keygen
+cat id_rsa.pub >> authorized_keys
+cat authorized_keys
+ssh localhost 
+ssh -v localhost  //for debug
+sudo apt-get install openssh-client 
+sudo apt-get install openssh-server
+
+//  Install JVM
+sudo apt-get update
+sudo apt-get install openjdk-7-jdk -y
+java -version
+
+//  Install Hadoop
+//  http://hadoop.apache.org 
+//  Apache release archive
+//  current/  
+//  hadoop-1.2.1/   
+//  hadoop-1.2.1.tar.gz copy this link location
+//  https://archive.apache.org/dist/hadoop/common/hadoop-1.2.1/hadoop-1.2.1.tar.gz
+
+wget https://archive.apache.org/dist/hadoop/common/hadoop-1.2.1/hadoop-1.2.1.tar.gz
+ls
+tar -zxvf hadoop-1.2.1.tar.gz
+ls
+//  file size
+du -h hadoop-1.2.1
+du -h hadoop-1.2.1.tar.gz
+
+ls
+cd hadoop-1.2.1/
+ls
+cd bin/
+./hadoop  	//  check hadoop is working
+
+//  Single-Node Configuration
+//  We are moving the unzipped file to “/usr/local/hadoop” this location,
+
+sudo mv hadoop-1.2.1 /usr/local/hadoop   
+whereis hadoop 
+hadoop: /usr/local/hadoop 
+echo $PATH
+//  linux is going to search in the above locations
+
+nano ~/.bashrc
+export HADOOP_PREFIX=/usr/local/hadoop/
+export PATH=$PATH:$HADOOP_PREFIX/bin
+export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64
+export PATH=$PATH:$JAVA_HOME
+
+bash
+hadoop
+
+whereis jvm
+cd /usr/lib/jvm/
+ls
+cd /usr/lib/jvm/java-7-openjdk-amd64
+echo $PATH 
+
+nano /usr/local/hadoop/conf/hadoop-env.sh
+export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64
+export HADOOP_OPTS=-Djava.net.preferIPV4Stack=true
+
+nano /usr/local/hadoop/conf/core-site.xml
+<property>
+<name>fs.default.name</name>
+<value>hdfs://localhost:9000</value>
+</property>
+<property>
+<name>hadoop.tmp.dir</name>
+<value>/usr/local/hadoop/tmp</value>
+</property>
+
+nano /usr/local/hadoop/conf/hdfs-site.xml
+<property>
+<name>dfs.replication</name>
+<value>1</value>
+</property>
+
+nano /usr/local/hadoop/conf/mapred-site.xml
+<property>
+<name>mapred.job.tracker</name>
+<value>hdfs://localhost:9001</value>
+</property>
+
+hadoop namenode -format
+start-dfs.sh 
+start-mapred.sh
+//  or start-all.sh
+
+//  Create a test file and process WordCount program in Hadoop
+cd 
+nano test1
+//  Write something in the file
+
+df -h test1 
+//  lsblk 
+
+hadoop fs -put test1 .
+cat >WordCount.java
+//  copy paste program(from another file)
+
+export CLASSPATH=/usr/local/hadoop/hadoop-core-1.2.1.jar
+mkdir wordcount_classes
+javac -d wordcount_classes/ WordCount.java
+jar -cvf wordcount.jar -C wordcount_classes/ .
+hadoop jar wordcount.jar WordCount test1 output1 
+hadoop fs -lsr
+hadoop fs -cat /user/ubuntu/output/part-00000 
+result

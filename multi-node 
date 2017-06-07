@@ -1,0 +1,206 @@
+//  nn(namenode), snn(secondarynamenode), jt(jobTracker), 1dn(1st datanode), 2dn(2nd datanode) And 3dn(3rd datanode)
+//  login to namenode
+sudo nano /etc/hosts/
+  private-ip  nn 
+  private-ip  snn 
+  private-ip  jt 
+  private-ip  1dn 
+  private-ip  2dn 
+  private-ip  3dn
+CTRL+O Enter
+CTRL+x
+
+cd Downloads
+scp -i Key.pem  Key.pem ubuntu@ip:/home/ubuntu/.ssh
+//  login to nn
+ssh -i Key.pem ubuntu@ip
+cd .ssh 
+ssh -i Key.pem nn 
+scp -i Key.pem Key.pem nn:/home/ubuntu/.ssh
+scp -i Key.pem Key.pem snn:/home/ubuntu/.ssh
+scp -i Key.pem Key.pem jt:/home/ubuntu/.ssh
+scp -i Key.pem Key.pem 1dn:/home/ubuntu/.ssh
+scp -i Key.pem Key.pem 2dn:/home/ubuntu/.ssh
+scp -i Key.pem Key.pem 3dn:/home/ubuntu/.ssh
+
+cd .ssh/
+ssh -i Key.pem nn
+sudo nano /etc/hosts 
+edit and save (copy paste all dns entrys)
+exit
+Do similarly for snn, jt, 1dn, 2dn and 3dn
+
+cd .ssh/ 
+arp 
+
+Address                  HWtype  HWaddress           Flags Mask            Iface 
+1dn                      ether   0a:21:d0:10:bc:06   C                     eth0 
+snn                      ether   0a:66:3e:d7:12:98   C                     eth0 
+ip-172-31-0-2.us-west-2  ether   0a:ee:c9:82:d5:be   C                     eth0 
+3dn                      ether   0a:9a:d5:68:8b:fc   C                     eth0 
+jt                       ether   0a:d5:88:7a:0f:b2   C                     eth0 
+2dn                      ether   0a:60:f8:6c:79:28   C                     eth0 
+ip-172-31-0-1.us-west-2  ether   0a:ee:c9:82:d5:be   C                     eth0 
+
+//  login to server nn
+nano .profile 
+eval `ssh-agent` ssh-add /home/ubuntu/.ssh/Key.pem 
+//  save and exit..
+
+source .profile 
+Agent pid 4402 
+Identity added: /home/ubuntu/.ssh/Key.pem (/home/ubuntu/.ssh/Key.pem)
+
+cd .ssh/
+ubuntu@ip-172-31-9-214:~/.ssh$ scp -i Key.pem ~/.profile nn:/home/ubuntu 
+.profile  100%  737     0.7KB/s   00:00    
+ubuntu@ip-172-31-9-214:~/.ssh$ scp -i Key.pem ~/.profile snn:/home/ubuntu 
+.profile  100%  737     0.7KB/s   00:00    
+ubuntu@ip-172-31-9-214:~/.ssh$ scp -i Key.pem ~/.profile jt:/home/ubuntu 
+.profile   100%  737     0.7KB/s   00:00    
+ubuntu@ip-172-31-9-214:~/.ssh$ scp -i Key.pem ~/.profile 1dn:/home/ubuntu 
+.profile   100%  737     0.7KB/s   00:00    
+ubuntu@ip-172-31-9-214:~/.ssh$ scp -i Key.pem ~/.profile 2dn:/home/ubuntu 
+.profile   100%  737     0.7KB/s   00:00    
+ubuntu@ip-172-31-9-214:~/.ssh$ scp -i Key.pem ~/.profile 3dn:/home/ubuntu 
+.profile   100%  737     0.7KB/s   00:00        
+
+sudo nano /etc/ssh/ssh_config
+#   StrictHostKeyChecking ask 
+StrictHostKeyChecking no 
+//  remove # and change ask to no, save and exit...
+
+ssh nn
+sudo apt-get install dsh -y
+whatis dsh
+sudo nano /etc/dsh/machines.list
+snn
+nn
+jt
+1dn
+2dn
+3dn
+//  save and exit
+
+dsh -a uptime
+yes
+
+dsh -a sudo apt-get install openjdk-7-jdk -y
+dsh -a sudo apt-get update
+dsh -a java -version
+
+ssh nn
+
+nano ~/.bashrc
+export HADOOP_PREFIX=/usr/local/hadoop/
+export PATH=$PATH:$HADOOP_PREFIX/bin
+export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64
+export PATH=$PATH:$JAVA_HOME
+
+ssh jt 
+nano .bashrc
+
+export HADOOP_PREFIX=/usr/local/hadoop/
+export PATH=$PATH:$HADOOP_PREFIX/bin
+export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64
+export PATH=$PATH:$JAVA_HOME
+
+ssh nn
+
+dsh -a wget http://apache.mirror.gtcomm.net/hadoop/common/hadoop-1.2.1/hadoop-1.2.1.tar.gz
+dsh -a tar -xzvf hadoop-1.2.1.tar.gz
+dsh -a sudo mv hadoop-1.2.1 /usr/local/hadoop
+
+nano /usr/local/hadoop/conf/hadoop-env.sh
+export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64
+export HADOOP_OPTS=-Djava.net.preferIPV4Stack=true
+
+nano /usr/local/hadoop/conf/core-site.xml
+<property>
+<name>fs.default.name</name>
+<value>hdfs://nn:9000</value>
+</property>
+<property>
+<name>hadoop.tmp.dir</name>
+<value>/usr/local/hadoop/tmp</value>
+</property>
+
+nano /usr/local/hadoop/conf/hdfs-site.xml
+<property>
+<name>dfs.replication</name>
+<value>3</value>
+</property>
+<property> 
+<name>dfs.permissions</name> 
+<value>false</value> 
+</property>
+
+nano /usr/local/hadoop/conf/mapred-site.xml
+<property>
+<name>mapred.job.tracker</name>
+<value>hdfs://jt:9001</value>
+</property>
+// *******************************************
+// *******************************************
+ssh nn 
+nano /usr/local/hadoop/conf/masters
+#localhost
+snn
+// *******************************************
+// *******************************************
+ssh nn
+nano /usr/local/hadoop/conf/slaves
+#localhost
+snn
+nn
+jt
+1dn
+2dn
+3dn
+// *******************************************
+// *******************************************
+cd /usr/local/hadoop/conf/
+
+scp  hadoop-env.sh core-site.xml hdfs-site.xml mapred-site.xml slaves ubuntu@snn:/usr/local/hadoop/conf/
+scp  hadoop-env.sh core-site.xml hdfs-site.xml mapred-site.xml slaves ubuntu@jt:/usr/local/hadoop/conf/
+scp  hadoop-env.sh core-site.xml hdfs-site.xml mapred-site.xml slaves ubuntu@1dn:/usr/local/hadoop/conf/
+scp  hadoop-env.sh core-site.xml hdfs-site.xml mapred-site.xml slaves ubuntu@2dn:/usr/local/hadoop/conf/
+scp  hadoop-env.sh core-site.xml hdfs-site.xml mapred-site.xml slaves ubuntu@3dn:/usr/local/hadoop/conf/
+
+// *******************************************
+// *******************************************
+ssh jt
+nano /usr/local/hadoop/conf/slaves
+1dn 
+2dn 
+3dn
+save and close (delete snn and nn from file..)
+// *******************************************
+// *******************************************
+ssh nn
+hadoop namenode -format
+start-dfs.sh
+
+ssh jt 
+start-mapred.sh 
+
+ssh nn
+dsh -a jps
+dsh -m 1dn jps
+dsh -m snn jps
+
+ls
+hadoop fs -put hadoop-1.2.1.tar.gz .
+
+hadoop dfsadmin -report 
+
+//  Datanodes available: 6 (6 total, 0 dead) 
+//  Name: 172.31.12.66:50010 
+//  Name: 172.31.9.214:50010
+//  Name: 172.31.4.204:50010 
+//  Name: 172.31.15.151:50010 
+//  Name: 172.31.11.54:50010 
+//  Name: 172.31.6.113:50010 
+
+hadoop fsck -blocks -location /user/ubuntu/hadoop-1.2.1.tar.gz
+hadoop jar /usr/local/hadoop/hadoop-examples-1.2.1.jar wordcount hadoop-1.2.1.tar.gz result

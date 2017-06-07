@@ -1,0 +1,78 @@
+//  FLUME
+//  Ubuntu Server 16.04 LTS 
+//  create a instance 
+//  Install a JVM
+
+wget http://archive.apache.org/dist/flume/1.4.0/apache-flume-1.4.0-bin.tar.gz 
+tar -zxvf apache-flume-1.4.0-bin.tar.gz
+cd apache-flume-1.4.0-bin/conf/ 
+mv flume-env.sh.template flume-env.sh
+nano flume-env.sh
+JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 
+FLUME_CLASSPATH="/home/ubuntu/apache-flume-1.4.0-bin/lib/*.jar" 
+cd ..
+ubuntu@ip-172-31-13-68:~/apache-flume-1.4.0-bin/conf$ nano flume.conf
+# Flume agent config 
+cloudage.sources = eventlog 
+cloudage.channels = file_channel 
+cloudage.sinks = sink_to_hdfs 
+
+# Define / Configure source 
+cloudage.sources.eventlog.type = exec 
+cloudage.sources.eventlog.command = tail -F /var/log/flume/eventlog.log 
+cloudage.sources.eventlog.restart = true 
+cloudage.sources.eventlog.batchSize = 1000 
+#cloudage.sources.eventlog.type = seq 
+
+# HDFS sinks 
+cloudage.sinks.sink_to_hdfs.type = hdfs 
+cloudage.sinks.sink_to_hdfs.hdfs.fileType = DataStream 
+cloudage.sinks.sink_to_hdfs.hdfs.path = hdfs://localhost:9000/user/ubuntu/flume/events 
+cloudage.sinks.sink_to_hdfs.hdfs.filePrefix = eventlog 
+cloudage.sinks.sink_to_hdfs.hdfs.fileSuffix = .log 
+cloudage.sinks.sink_to_hdfs.hdfs.batchSize = 1000 
+
+# Use a channel which buffers events in memory 
+cloudage.channels.file_channel.type = file 
+cloudage.channels.file_channel.checkpointDir = /var/log/flume/checkpoint 
+cloudage.channels.file_channel.dataDirs = /var/log/flume/data 
+
+# Bind the source and sink to the channel 
+cloudage.sources.eventlog.channels = file_channel 
+cloudage.sinks.sink_to_hdfs.channel = file_channel 
+
+wget https://s3-ap-southeast-2.amazonaws.com/datasetz/generate_logs.py 
+mv generate_logs.py /home/ubuntu/
+sudo nano generate_logs.py
+parser.add_option("-f", "--logfile", dest="logfile", help="Specify a log file. Default=/var/log/flume/eventlog.log", default="/var/log/flume/eventlog.log", type="string")
+sudo mkdir /var/log/flume/ 
+sudo mkdir /var/log/flume/checkpoint/ 
+sudo mkdir /var/log/flume/data/ 
+sudo chmod 777 -R /var/log/flume 
+sudo chmod  777 generate_logs.py
+sudo apt-get install python 
+//  open new terminal and login to ssh and tail -F /var/log/flume/eventlog.log
+
+//  Install Hadoop
+hadoop fs -mkdir hdfs://localhost:9000/user/ubuntu/flume/events
+cd apache-flume-1.4.0-bin/bin
+./flume-ng agent --conf /home/ubuntu/apache-flume-1.4.0-bin/conf/ --conf-file /home/ubuntu/apache-flume-1.4.0-bin/conf/flume.conf  --name cloudage
+//  Open new terminal 
+sudo python generate_logs.py
+tail -F /var/log/flume/eventlog.log
+
+//  Twitter.com 
+//  go to apps.twitter.com 
+//  create app : FlumeAppRamij
+hadoop fs -mkdir hdfs://localhost:9000/user/ubuntu/tweeter
+wget https://s3-ap-southeast-2.amazonaws.com/datasetz/flume-sources-1.0-SNAPSHOT.jar
+mv flume-sources-1.0-SNAPSHOT.jar apache-flume-1.4.0-bin/lib/
+nano apache-flume-1.4.0-bin/conf/flume-env.sh
+JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 
+FLUME_CLASSPATH="apache-flume-1.4.0-bin/lib/flume-sources-1.0-SNAPSHOT.jar"
+nano twitter.conf
+mv twitter.conf apache-flume-1.4.0-bin/conf/ 
+cd /home/ubuntu/apache-flume-1.4.0-bin/bin 
+./flume-ng agent --conf /home/ubuntu/apache-flume-1.4.0-bin/conf/  -f /home/ubuntu/apache-flume-1.4.0-bin/conf/twitter.conf -Dflume.root.logger=DEBUG,console -n TwitterAgent
+//  now check at browser Instance-ip:50070
+
