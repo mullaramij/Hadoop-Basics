@@ -1,0 +1,316 @@
+//	Create instance 14.04
+sudo apt-get update && sudo apt-get dist-upgrade -y && sudo reboot
+//	Install Java 8
+sudo add-apt-repository -y ppa:webupd8team/java
+//	if u execute this command it will skip the confirmation dialoge
+//	echo "oracle-java8-installer shared/accepted-oracle-license-v1-1 select true" | sudo debconf-set-selections
+sudo apt-get update
+sudo apt-get install -y oracle-java8-installer
+//	Install Hadoop 
+wget http://apache.mirrors.tds.net/hadoop/common/hadoop-2.7.2/hadoop-2.7.2.tar.gz -P ~/Downloads
+sudo tar zxvf ~/Downloads/hadoop-* -C /usr/local
+sudo mv /usr/local/hadoop-* /usr/local/hadoop
+which java
+readlink -f $(which java) 
+//	expected output: /usr/lib/jvm/java-8-oracle/jre/bin/java
+
+cat >>$HOME/.bashrc <<EOL 
+# -- HADOOP ENVIRONMENT VARIABLES START -- # 
+export JAVA_HOME=/usr/lib/jvm/java-8-oracle 
+export HADOOP_HOME=/usr/local/hadoop 
+export PATH=\$PATH:\$HADOOP_HOME/bin 
+export PATH=\$PATH:\$HADOOP_HOME/sbin 
+export PATH=\$PATH:/usr/local/hadoop/bin/ 
+export HADOOP_MAPRED_HOME=\$HADOOP_HOME 
+export HADOOP_COMMON_HOME=\$HADOOP_HOME 
+export HADOOP_HDFS_HOME=\$HADOOP_HOME 
+export YARN_HOME=\$HADOOP_HOME 
+export HADOOP_CONF_DIR=/usr/local/hadoop/etc/hadoop 
+export PDSH_RCMD_TYPE=ssh 
+# -- HADOOP ENVIRONMENT VARIABLES END -- # 
+EOL
+
+exec bash
+sudo chown -R ubuntu:ubuntu /usr/local/hadoop
+//	Update hadoop-env.sh 
+sudo su -c 'echo export JAVA_HOME=/usr/lib/jvm/java-8-oracle >> /usr/local/hadoop/etc/hadoop/hadoop-env.sh'
+sudo su -c 'echo export HADOOP_LOG_DIR=/var/log/hadoop/ >> /usr/local/hadoop/etc/hadoop/hadoop-env.sh'
+sudo mkdir /var/log/hadoop/ 
+sudo chown ubuntu:ubuntu -R /var/log/hadoop 
+setenforce 0
+sudo apt-get install selinux-utils
+setenforce 0
+//	Disable IPV6 
+cat /proc/sys/net/ipv6/conf/all/disable_ipv6
+
+sudo su -c 'cat >>/etc/sysctl.conf <<EOL 
+net.ipv6.conf.all.disable_ipv6 =1 
+net.ipv6.conf.default.disable_ipv6 =1 
+net.ipv6.conf.lo.disable_ipv6 =1 
+EOL' 
+
+sudo sysctl -p
+cat /proc/sys/net/ipv6/conf/all/disable_ipv6
+//	Disable FireWall iptables 
+sudo iptables -L -n -v 
+sudo ufw status verbose 
+//	Disabling Transparent Hugepage Compaction 
+//	Red Hat/CentOS: /sys/kernel/mm/redhat_transparent_hugepage/defrag 
+//	Ubuntu/Debian, OEL, SLES: /sys/kernel/mm/transparent_hugepage/defrag 
+
+cat /sys/kernel/mm/transparent_hugepage/defrag
+
+sudo su -c 'cat >>/etc/rc.local <<EOL 
+if test -f /sys/kernel/mm/transparent_hugepage/enabled; then 
+  echo never > /sys/kernel/mm/transparent_hugepage/enabled 
+fi 
+if test -f /sys/kernel/mm/transparent_hugepage/defrag; then 
+   echo never > /sys/kernel/mm/transparent_hugepage/defrag 
+fi 
+exit 0 
+EOL' 
+
+sudo nano /etc/rc.local 
+//	remove the first line i.e. exit 0
+sudo -i 
+source /etc/rc.local 
+cat /sys/kernel/mm/transparent_hugepage/defrag
+//	 Set Swappiness 
+sudo sysctl -a 
+// output: vm.swappiness = 60 
+sudo sysctl -a | grep vm.swappiness
+
+sudo su -c 'cat >>/etc/sysctl.conf <<EOL 
+'vm.swappiness=0' 
+EOL'
+
+sudo sysctl -a
+sudo sysctl -p
+sudo sysctl -a | grep vm.swappiness
+
+//	output: vm.swappiness = 0 
+//	 Configure NTP 
+timedatectl status
+timedatectl list-timezones 
+timedatectl list-timezones | grep Asia/Kolkata 
+sudo timedatectl set-timezone Asia/Kolkata 
+timedatectl status 
+sudo apt-get install ntp 
+sudo ntpq -p 
+timedatectl status 
+sudo nano /etc/ntp.conf
+
+//	below this, you can set your own time-server
+# Use servers from the NTP Pool Project. Approved by Ubuntu Technical Board 
+# on 2011-02-08 (LP: #104525). See http://www.pool.ntp.org/join.html for 
+# more information. 
+
+//	 Root Reserved Space 
+sudo file -sL /dev/xvda1
+mkfs.ext4 -m 0 /dev/xvda1
+lsblk
+
+sudo tune2fs -m 0 /dev/xvda1
+
+
+//	Configure SSH Password less logins 
+echo -e  'y\n'| ssh-keygen -t rsa -P "" -f $HOME/.ssh/id_rsa
+cat $HOME/.ssh/id_rsa.pub >> $HOME/.ssh/authorized_keys
+sudo service ssh restart
+
+//	create a IMAGE goto aws web
+Image name			Hadoop2
+Image description		prerequisiteComplete
+No reboot			tick 'yes'
+
+Create Image
+
+//	now create 3 instances from the image
+//	login to nn
+sudo nano /etc/hosts
+172.31.19.64 	nn
+172.31.18.254	rm
+172.31.20.215 	2dn
+172.31.24.122 	dn
+sudo hostname nn 
+bash
+ssh rm
+exit
+ssh dn
+exit
+ssh 2dn
+exit
+// edit hosts file in  rm, dn, 2dn 
+// login to nn
+# Configure pdsh 
+sudo apt-get install pdsh -y 
+sudo nano /etc/genders 
+nn
+rm
+dn
+2dn 
+// save and close
+
+export PDSH_RCMD_TYPE=ssh 
+pdsh -a uptime
+nano /usr/local/hadoop/etc/hadoop/slaves
+rm
+dn
+2dn
+// save and close
+
+#Update core-site.xml 
+sudo sed -i '/<configuration>/,/<\/configuration>/d' /usr/local/hadoop/etc/hadoop/core-site.xml 
+
+sudo su -c 'cat >> /usr/local/hadoop/etc/hadoop/core-site.xml <<EOL 
+<configuration> 
+  <property> 
+    <name>fs.defaultFS</name> 
+    <value>hdfs://nn:9000</value> 
+  </property> 
+</configuration> 
+
+EOL'
+
+sudo sed -i '/<configuration>/,/<\/configuration>/d' /usr/local/hadoop/etc/hadoop/hdfs-site.xml 
+
+sudo su -c 'cat >>/usr/local/hadoop/etc/hadoop/hdfs-site.xml <<EOL 
+<configuration> 
+  <property> 
+    <name>dfs.replication</name> 
+    <value>3</value> 
+  </property> 
+  <property> 
+    <name>dfs.namenode.name.dir</name> 
+    <value>file:///usr/local/hadoop/data/hdfs/namenode</value> 
+  </property> 
+</configuration> 
+EOL' 
+
+ssh rm
+
+sudo sed -i '/<configuration>/,/<\/configuration>/d' /usr/local/hadoop/etc/hadoop/hdfs-site.xml
+
+sudo su -c 'cat >>/usr/local/hadoop/etc/hadoop/hdfs-site.xml <<EOL 
+<configuration> 
+  <property> 
+    <name>dfs.replication</name> 
+    <value>3</value> 
+  </property> 
+  <property> 
+    <name>dfs.datanode.name.dir</name> 
+    <value>file:///usr/local/hadoop/data/hdfs/datanode</value> 
+  </property> 
+</configuration> 
+EOL' 
+
+ssh dn
+
+sudo sed -i '/<configuration>/,/<\/configuration>/d' /usr/local/hadoop/etc/hadoop/hdfs-site.xml
+
+sudo su -c 'cat >>/usr/local/hadoop/etc/hadoop/hdfs-site.xml <<EOL 
+<configuration> 
+  <property> 
+    <name>dfs.replication</name> 
+    <value>3</value> 
+  </property> 
+  <property> 
+    <name>dfs.datanode.name.dir</name> 
+    <value>file:///usr/local/hadoop/data/hdfs/datanode</value> 
+  </property> 
+</configuration> 
+EOL' 
+
+ssh 2dn
+
+sudo sed -i '/<configuration>/,/<\/configuration>/d' /usr/local/hadoop/etc/hadoop/hdfs-site.xml
+
+sudo su -c 'cat >>/usr/local/hadoop/etc/hadoop/hdfs-site.xml <<EOL 
+<configuration> 
+  <property> 
+    <name>dfs.replication</name> 
+    <value>3</value> 
+  </property> 
+  <property> 
+    <name>dfs.datanode.name.dir</name> 
+    <value>file:///usr/local/hadoop/data/hdfs/datanode</value> 
+  </property> 
+</configuration> 
+EOL' 
+
+ssh nn
+
+pdsh -a mkdir -p /usr/local/hadoop/data/hdfs/datanode
+        mkdir -p /usr/local/hadoop/data/hdfs/namenode 
+
+//	Update yarn-site.xml 
+
+sudo sed -i '/<configuration>/,/<\/configuration>/d' /usr/local/hadoop/etc/hadoop/yarn-site.xml 
+
+sudo su -c 'cat >>/usr/local/hadoop/etc/hadoop/yarn-site.xml <<EOL 
+
+<configuration> 
+<!-- Site specific YARN configuration properties --> 
+  <property> 
+    <name>yarn.nodemanager.aux-services</name> 
+    <value>mapreduce_shuffle</value> 
+  </property> 
+  <property> 
+    <name>yarn.resourcemanager.hostname</name> 
+    <value>rm</value> 
+  </property> 
+</configuration> 
+EOL' 
+
+ 
+//	Update mapred-site.xml 
+cp  /usr/local/hadoop/etc/hadoop/mapred-site.xml.template /usr/local/hadoop/etc/hadoop/mapred-site.xml 
+sudo sed -i '/<configuration>/,/<\/configuration>/d' /usr/local/hadoop/etc/hadoop/mapred-site.xml 
+
+sudo su -c 'cat >>/usr/local/hadoop/etc/hadoop/mapred-site.xml <<EOL 
+<configuration> 
+  <property> 
+    <name>mapreduce.jobtracker.address</name> 
+    <value>rm:54311</value> 
+  </property> 
+  <property> 
+    <name>mapreduce.framework.name</name> 
+    <value>yarn</value> 
+  </property> 
+</configuration> 
+EOL'
+
+sudo chown -R ubuntu:ubuntu $HADOOP_HOME
+cd /usr/local/hadoop/etc/hadoop && scp core-site.xml mapred-site.xml yarn-site.xml slaves rm:/usr/local/hadoop/etc/hadoop
+cd /usr/local/hadoop/etc/hadoop && scp core-site.xml mapred-site.xml yarn-site.xml slaves dn:/usr/local/hadoop/etc/hadoop
+cd /usr/local/hadoop/etc/hadoop && scp core-site.xml mapred-site.xml yarn-site.xml slaves 2dn:/usr/local/hadoop/etc/hadoop
+hdfs namenode -format
+start-dfs.sh
+pdsh -a jps 
+// result should be
+ubuntu@nn:~$ pdsh -a jps 
+nn: 3042 SecondaryNameNode 
+nn: 2796 NameNode 
+nn: 3247 Jps 
+dn: 2337 Jps 
+dn: 2195 DataNode 
+2dn: 2169 Jps 
+2dn: 2027 DataNode 
+rm: 2371 Jps 
+rm: 2228 DataNode 
+
+ssh rm
+start-yarn.sh
+ssh nn
+$HADOOP_HOME/sbin/mr-jobhistory-daemon.sh start historyserver
+hdfs dfs -mkdir /user 
+hdfs dfs -mkdir /user/ubuntu
+hdfs dfs -put Downloads/hadoop-2.7.2.tar.gz
+hadoop jar /usr/local/hadoop/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.2.jar pi 10 100000
+// result should be 
+Job Finished in 64.485 seconds 
+Estimated value of Pi is 3.14155200000000000000 
+
+
+
+
