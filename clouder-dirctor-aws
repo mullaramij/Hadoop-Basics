@@ -1,0 +1,25 @@
+# Using this file create launcher as CDirector you can deploye your cluster
+m3.xlarge ami-00a11e68 for launcher
+ami-290c5e40 for cm and worker nodes
+
+sudo yum -y install wget
+
+wget --no-cookies --no-check-certificate --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie" "http://download.oracle.com/otn-pub/java/jdk/8u151-b12/e758a0de34e24606bca991d704f6dcbf/jdk-8u151-linux-x64.rpm"
+
+sudo yum -y localinstall jdk-8u151-linux-x64.rpm
+
+cd /etc/yum.repos.d/
+
+sudo wget "https://archive.cloudera.com/director/redhat/6/x86_64/director/cloudera-director.repo"
+
+sudo yum -y update
+
+sudo yum -y install cloudera-director-server cloudera-director-client
+
+sudo service cloudera-director-server start
+
+only if required 
+systemctl status firewalld
+sudo systemctl disable firewalld
+sudo systemctl stop firewalld
+
